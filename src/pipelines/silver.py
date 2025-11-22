@@ -20,16 +20,16 @@ USER_NAME = spark.conf.get("userName", "user")
 # COMMAND ----------
 
 
-def get_fqn(table_name):
-    schema_name = f"{USER_NAME}_silver" if ENVIRONMENT == "user" else "silver"
-    return f"`{CATALOG_NAME}`.`{schema_name}`.`{table_name}`"
+def get_fqn(table_name, schema_name):
+    catalog_name = CATALOG_NAME if ENVIRONMENT != "user" else f"user_{USER_NAME}_<domain>"
+    return f"`{catalog_name}`.`{schema_name}`.`{table_name}`"
 
 
 # COMMAND ----------
 
 
 @dlt.table(
-    name=get_fqn("taxi_trips"),
+    name=get_fqn("taxi_trips", "silver"),
     comment="Silver layer: Aggregated and enriched data",
     table_properties={
         "quality": "silver",

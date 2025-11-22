@@ -23,11 +23,14 @@ def main():
     spark = SparkSession.builder.appName("SilverTransformation").getOrCreate()
 
     # Determine schema names based on environment
-    bronze_schema = f"{args.user_name}_bronze" if args.environment == "user" else "bronze"
-    silver_schema = f"{args.user_name}_silver" if args.environment == "user" else "silver"
+    catalog_name = (
+        args.catalog_name if args.environment != "user" else f"user_{args.user_name}_<domain>"
+    )
+    bronze_schema = "bronze"
+    silver_schema = "silver"
 
     # Read from bronze layer
-    bronze_table_fqn = f"`{args.catalog_name}`.`{bronze_schema}`.`sales_customers_raw`"
+    bronze_table_fqn = f"`{catalog_name}`.`{bronze_schema}`.`sales_customers_raw`"
     df_bronze = spark.read.table(bronze_table_fqn)
     print(f"Read {df_bronze.count()} records from {bronze_table_fqn}")
 
@@ -52,7 +55,7 @@ def main():
     print(f"Cleaned to {df_silver.count()} records")
 
     # Write to silver layer
-    silver_table_fqn = f"`{args.catalog_name}`.`{silver_schema}`.`sales_customers_clean`"
+    silver_table_fqn = f"`{catalog_name}`.`{silver_schema}`.`sales_customers_clean`"
     df_silver.write.mode("overwrite").saveAsTable(silver_table_fqn)
 
     print(f"Wrote to {silver_table_fqn}")

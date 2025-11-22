@@ -1,6 +1,13 @@
 bundle:
   name: realworld_example
 
+# Experimental features configuration
+experimental:
+  # Skip adding prefix to Unity Catalog schema names
+  # This keeps schema names consistent across environments (bronze, silver, gold)
+  # while other resources (jobs, pipelines) still get environment prefixes
+  skip_name_prefix_for_schema: true
+
 include:
   - resources/*.yml
   - resources/*/*.yml
@@ -26,19 +33,48 @@ targets:
 
     #### Variables ####
     variables:
-      catalog_name: "users_<domain>"
-      default_schema_name: "${workspace.current_user.short_name}_bronze"
+      catalog_name: "user_${workspace.current_user.short_name}_<domain>"
+      default_schema_name: "bronze"
+      default_service_principal: ${var.dev_service_principal}
       pipeline_min_workers: 1
       pipeline_max_workers: 1
       photon_enabled: false
       continuous_mode: false
       failure_notification_emails: []
-      max_retries: 0  # No retries in dev mode - fail fast
       job_cluster_min_workers: 1
       job_cluster_max_workers: 1
+      max_retries: 0  # No retries in dev mode - fail fast
 
     #### Resource Overrides ####
     resources:
+      schemas:
+        # Bronze: Full access for developers in user environment
+        bronze_schema:
+          name: bronze
+          catalog_name: ${var.catalog_name}
+          grants:
+            - principal: ${var.developers_group}
+              privileges:
+                - ALL_PRIVILEGES
+
+        # Silver: Full access for developers
+        silver_schema:
+          name: silver
+          catalog_name: ${var.catalog_name}
+          grants:
+            - principal: ${var.developers_group}
+              privileges:
+                - ALL_PRIVILEGES
+
+        # Gold: Full access for developers
+        gold_schema:
+          name: gold
+          catalog_name: ${var.catalog_name}
+          grants:
+            - principal: ${var.developers_group}
+              privileges:
+                - ALL_PRIVILEGES
+
       jobs:
         sample_ingestion:
           # Override schedule - don't run automatically in user env
@@ -69,18 +105,14 @@ targets:
     git:
       branch: dev
     run_as:
-      # Recommended: Use service principal for shared environments
+      # TODO: Uncomment to use service principal for template
       # service_principal_name: ${var.dev_service_principal}
       user_name: ${workspace.current_user.userName}
 
     #### Permissions ####
     permissions:
-    # All users can view development resources
-    - level: CAN_VIEW
-      group_name: users
-
     # Developers can run and manage their work
-    - level: CAN_MANAGE_RUN
+    - level: CAN_MANAGE
       group_name: ${var.developers_group}
 
     # Service principal or deployment user gets full management
@@ -99,6 +131,7 @@ targets:
     variables:
       catalog_name: "dev_<domain>"
       default_schema_name: "bronze"
+      default_service_principal: ${var.dev_service_principal}
       pipeline_min_workers: 1
       pipeline_max_workers: 2
       photon_enabled: true
@@ -112,6 +145,42 @@ targets:
 
     #### Resource Overrides ####
     resources:
+      schemas:
+        # Bronze: Full access for developers in dev
+        bronze_schema:
+          name: bronze
+          catalog_name: ${var.catalog_name}
+          grants:
+            - principal: ${var.developers_group}
+              privileges:
+                - ALL_PRIVILEGES
+
+        # Silver: Developers full access, Analytics read-only
+        silver_schema:
+          name: silver
+          catalog_name: ${var.catalog_name}
+          grants:
+            - principal: ${var.developers_group}
+              privileges:
+                - ALL_PRIVILEGES
+            - principal: ${var.analytics_team_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+
+        # Gold: Developers full access, Analytics read-only
+        gold_schema:
+          name: gold
+          catalog_name: ${var.catalog_name}
+          grants:
+            - principal: ${var.developers_group}
+              privileges:
+                - ALL_PRIVILEGES
+            - principal: ${var.analytics_team_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+
       jobs:
         sample_ingestion:
           # 1 hour timeout for dev environment
@@ -143,7 +212,7 @@ targets:
     git:
       branch: stage
     run_as:
-      # Recommended: Use service principal for controlled deployments
+      # TODO: Uncomment to use service principal for template
       # service_principal_name: ${var.stage_service_principal}
       user_name: ${workspace.current_user.userName}
 
@@ -165,6 +234,7 @@ targets:
     variables:
       catalog_name: "stage_<domain>"
       default_schema_name: "bronze"
+      default_service_principal: ${var.stage_service_principal}
       pipeline_min_workers: 2
       pipeline_max_workers: 4
       photon_enabled: true
@@ -178,6 +248,57 @@ targets:
 
     #### Resource Overrides ####
     resources:
+      schemas:
+        # Bronze: Developers and QA read-only in stage
+        bronze_schema:
+          name: bronze
+          catalog_name: ${var.catalog_name}
+          grants:
+            - principal: ${var.developers_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+            - principal: ${var.qa_team_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+
+        # Silver: Developers, QA, and Analytics read-only
+        silver_schema:
+          name: silver
+          catalog_name: ${var.catalog_name}
+          grants:
+            - principal: ${var.developers_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+            - principal: ${var.qa_team_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+            - principal: ${var.analytics_team_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+
+        # Gold: Wider read access for testing
+        gold_schema:
+          name: gold
+          catalog_name: ${var.catalog_name}
+          grants:
+            - principal: ${var.developers_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+            - principal: ${var.qa_team_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+            - principal: ${var.analytics_team_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+
       jobs:
         sample_ingestion:
           # Longer timeout for production-like workloads
@@ -212,7 +333,7 @@ targets:
     git:
       branch: prod
     run_as:
-      # CRITICAL: Use service principal for production deployments
+      # TODO: Uncomment to use service principal for template
       # service_principal_name: ${var.prod_service_principal}
       user_name: ${workspace.current_user.userName}
 
@@ -234,6 +355,7 @@ targets:
     variables:
       catalog_name: "prod_<domain>"
       default_schema_name: "bronze"
+      default_service_principal: ${var.prod_service_principal}
       pipeline_min_workers: 2
       pipeline_max_workers: 8
       photon_enabled: true
@@ -247,6 +369,45 @@ targets:
 
     #### Resource Overrides ####
     resources:
+      schemas:
+        # Bronze: Read-only for operations (incident investigation)
+        bronze_schema:
+          name: bronze
+          catalog_name: ${var.catalog_name}
+          grants:
+            - principal: ${var.operations_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+
+        # Silver: Read-only for analytics and operations
+        silver_schema:
+          name: silver
+          catalog_name: ${var.catalog_name}
+          grants:
+            - principal: ${var.analytics_team_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+            - principal: ${var.operations_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+
+        # Gold: Read access for analytics and operations (production-ready data)
+        gold_schema:
+          name: gold
+          catalog_name: ${var.catalog_name}
+          grants:
+            - principal: ${var.analytics_team_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+            - principal: ${var.operations_group}
+              privileges:
+                - USE_SCHEMA
+                - SELECT
+
       jobs:
         sample_ingestion:
           # Extended timeout for production data volumes

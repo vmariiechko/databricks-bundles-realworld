@@ -12,12 +12,24 @@ resources:
         no_alert_for_skipped_runs: true
         no_alert_for_canceled_runs: true
 
+      # Health rules for job monitoring
+      # Docs: https://docs.databricks.com/aws/en/dev-tools/bundles/resources#job-health-rules
+      health:
+        rules:
+          - metric: RUN_DURATION_SECONDS
+            op: GREATER_THAN
+            value: 3600  # Alert if job takes > 1 hour
+
       # OPTION 1: Serverless compute
       environments:
         - environment_key: default
           # https://docs.databricks.com/api/workspace/jobs/create#environments-spec
           spec:
             environment_version: "2"
+            # Sample dependencies for serverless - add your packages here
+            dependencies:
+              - requests==2.32.3
+              - databricks-sql-connector==4.0.0
 
       # OPTION 2: Custom cluster
       # Uncomment the section below and comment out the 'environments' section above
@@ -40,6 +52,7 @@ resources:
       #         "spark.databricks.delta.optimizeWrite.enabled": "true"
       #       spark_env_vars:
       #         ENVIRONMENT: ${bundle.target}
+      #     # Sample libraries for custom cluster - add at task level instead (see below)
 
       tasks:  # https://docs.databricks.com/aws/en/dev-tools/bundles/job-task-types#other-task-settings
         - task_key: ingest_to_raw
@@ -48,8 +61,13 @@ resources:
           # For serverless: use environment_key
           environment_key: default
 
-          # For custom cluster: uncomment and use job_cluster_key instead
+          # For custom cluster: uncomment job_cluster_key and libraries, comment out environment_key
           # job_cluster_key: job_cluster
+          # libraries:
+          #   - pypi:
+          #       package: requests==2.32.3
+          #   - pypi:
+          #       package: databricks-sql-connector==4.0.0
 
           max_retries: ${var.max_retries}
           min_retry_interval_millis: ${var.retry_interval_millis}
@@ -73,8 +91,11 @@ resources:
           # For serverless: use environment_key
           environment_key: default
 
-          # For custom cluster: uncomment and use job_cluster_key instead
+          # For custom cluster: uncomment job_cluster_key and libraries, comment out environment_key
           # job_cluster_key: job_cluster
+          # libraries:
+          #   - pypi:
+          #       package: requests==2.32.3
 
           max_retries: ${var.max_retries}
           min_retry_interval_millis: ${var.retry_interval_millis}

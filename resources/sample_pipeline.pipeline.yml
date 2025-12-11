@@ -42,6 +42,14 @@ resources:
       #       bundle: ${bundle.name}
       #       environment: ${bundle.target}
 
+      # Python dependencies for the pipeline
+      # Add any PyPI packages your pipeline code needs
+      # Docs: https://docs.databricks.com/aws/en/dev-tools/bundles/resources#pipelineenvironment
+      # environment:
+      #   dependencies:
+      #     - requests==2.32.3
+      #     - simplejson==3.19.2
+
       # Source code - referencing *.py files in Databricks Notebook format
       libraries:
         - notebook:
